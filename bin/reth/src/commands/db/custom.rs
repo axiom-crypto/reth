@@ -49,6 +49,10 @@ pub fn get_state_trie_depth<'a>(tool: DbTool<'a, DatabaseEnv>) -> eyre::Result<(
             let mut max_depth = 0;
             let (entries, _hits) = tool.list::<AccountsTrie>(&filter)?;
             for (stored_nibbles, _stored_branch_node) in entries {
+                println!(
+                    "Stored nibbles: {:?}, branch node: {:?}",
+                    stored_nibbles, _stored_branch_node
+                );
                 let num_nibbles = stored_nibbles.0.len();
                 max_depth = max_depth.max(num_nibbles);
             }
