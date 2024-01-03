@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::fs::File;
 
 use alloy_rlp::Encodable;
 use itertools::Itertools;
@@ -18,43 +18,52 @@ pub fn get_tx_data<'a>(tool: DbTool<'a, DatabaseEnv>) -> eyre::Result<()> {
         let page_size = stats.page_size() as usize;
         //println!("Page size: {}", page_size);
         let page_size = 100 * page_size;
-        let filter = ListFilter {
-            skip: 0,
-            len: page_size,
-            search: vec![],
-            min_row_size: 0,
-            min_key_size: 0,
-            min_value_size: 0,
-            reverse: false,
-            only_count: false,
-        };
-        let type_and_access_list_rlp_len = retry_until_success(|| {
-            let (entries, _hits) = tool.list::<Transactions>(&filter)?;
-            let type_and_access_list_rlp_len: Vec<_> = entries
-                .into_par_iter()
-                .map(|(_, tx)| {
-                    let tx = tx.transaction;
-                    if let Some(access_list) = tx.access_list() {
-                        let mut buf = vec![];
-                        access_list.encode(&mut buf);
-                        (tx.tx_type(), buf.len())
-                    } else {
-                        (tx.tx_type(), 0)
-                    }
-                })
-                .collect();
-            let res =
-                type_and_access_list_rlp_len.into_iter().filter(|(_, len)| len != &0).collect_vec();
-            Ok(res)
-        });
-        let mut max_by_type = HashMap::new();
-        for (tx_type, len) in type_and_access_list_rlp_len {
-            let max = max_by_type.entry(tx_type as usize).or_insert(0);
-            if len > *max {
-                *max = len;
-            }
+        let mut start = 0;
+        let mut count = 0;
+        while start < total_entries {
+            let len = std::cmp::min(page_size, total_entries - start);
+            let filter = ListFilter {
+                skip: start,
+                len,
+                search: vec![],
+                min_row_size: 0,
+                min_key_size: 0,
+                min_value_size: 0,
+                reverse: false,
+                only_count: false,
+            };
+            retry_until_success(|| {
+                let (entries, _hits) = tool.list::<Transactions>(&filter)?;
+                let type_and_access_list_rlp_len: Vec<_> = entries
+                    .into_par_iter()
+                    .map(|(_, tx)| {
+                        if let Some(access_list) = tx.transaction.access_list() {
+                            let mut buf = vec![];
+                            access_list.encode(&mut buf);
+                            (tx, buf.len())
+                        } else {
+                            (tx, 0)
+                        }
+                    })
+                    .collect();
+                let res = type_and_access_list_rlp_len
+                    .into_iter()
+                    .filter_map(|(tx, len)| (len != 0).then(|| (tx.tx_type(), tx.hash(), len)))
+                    .collect_vec();
+                let f = File::create(format!("tx_access_list_lens.{count}.csv"))?;
+                let mut wtr = csv::Writer::from_writer(f);
+                for (tx_type, hash, len) in &res {
+                    wtr.write_record(&[
+                        (*tx_type as isize).to_string(),
+                        hash.to_string(),
+                        len.to_string(),
+                    ])?;
+                }
+                Ok(())
+            });
+            start += page_size;
+            count += 1;
         }
-        println!("{:?}", max_by_type);
     })?;
     Ok(())
 }
