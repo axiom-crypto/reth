@@ -17,7 +17,7 @@ pub fn get_tx_data<'a>(tool: DbTool<'a, DatabaseEnv>) -> eyre::Result<()> {
         println!("Total tx entries: {}", total_entries);
         let page_size = stats.page_size() as usize;
         //println!("Page size: {}", page_size);
-        let page_size = 100 * page_size;
+        let page_size = 1_000 * page_size;
         let mut start = 0;
         let mut count = 0;
         while start < total_entries {
@@ -50,6 +50,9 @@ pub fn get_tx_data<'a>(tool: DbTool<'a, DatabaseEnv>) -> eyre::Result<()> {
                     .into_iter()
                     .filter_map(|(tx, len)| (len != 0).then(|| (tx.tx_type(), tx.hash(), len)))
                     .collect_vec();
+                if res.is_empty() {
+                    return Ok(())
+                }
                 let f = File::create(format!("data/tx_access_list_lens.{count}.csv"))?;
                 let mut wtr = csv::Writer::from_writer(f);
                 for (tx_type, hash, len) in &res {
