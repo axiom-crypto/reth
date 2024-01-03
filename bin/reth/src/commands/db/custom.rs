@@ -50,7 +50,7 @@ pub fn get_tx_data<'a>(tool: DbTool<'a, DatabaseEnv>) -> eyre::Result<()> {
                     .into_iter()
                     .filter_map(|(tx, len)| (len != 0).then(|| (tx.tx_type(), tx.hash(), len)))
                     .collect_vec();
-                let f = File::create(format!("tx_access_list_lens.{count}.csv"))?;
+                let f = File::create(format!("data/tx_access_list_lens.{count}.csv"))?;
                 let mut wtr = csv::Writer::from_writer(f);
                 for (tx_type, hash, len) in &res {
                     wtr.write_record(&[
