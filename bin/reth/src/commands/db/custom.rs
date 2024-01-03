@@ -1,3 +1,8 @@
+use std::collections::HashMap;
+
+use alloy_rlp::Encodable;
+use itertools::Itertools;
+use rayon::prelude::*;
 use reth_db::{database::Database, AccountsTrie, DatabaseEnv, Transactions};
 
 use crate::utils::{DbTool, ListFilter};
@@ -11,7 +16,8 @@ pub fn get_tx_data<'a>(tool: DbTool<'a, DatabaseEnv>) -> eyre::Result<()> {
         let total_entries = stats.entries();
         println!("Total tx entries: {}", total_entries);
         let page_size = stats.page_size() as usize;
-        println!("Page size: {}", page_size);
+        //println!("Page size: {}", page_size);
+        let page_size = 100 * page_size;
         let filter = ListFilter {
             skip: 0,
             len: page_size,
@@ -22,7 +28,33 @@ pub fn get_tx_data<'a>(tool: DbTool<'a, DatabaseEnv>) -> eyre::Result<()> {
             reverse: false,
             only_count: false,
         };
-        let (entries, hits) = tool.list::<Transactions>(&filter).unwrap();
+        let type_and_access_list_rlp_len = retry_until_success(|| {
+            let (entries, _hits) = tool.list::<Transactions>(&filter)?;
+            let type_and_access_list_rlp_len: Vec<_> = entries
+                .into_par_iter()
+                .map(|(_, tx)| {
+                    let tx = tx.transaction;
+                    if let Some(access_list) = tx.access_list() {
+                        let mut buf = vec![];
+                        access_list.encode(&mut buf);
+                        (tx.tx_type(), buf.len())
+                    } else {
+                        (tx.tx_type(), 0)
+                    }
+                })
+                .collect();
+            let res =
+                type_and_access_list_rlp_len.into_iter().filter(|(_, len)| len != &0).collect_vec();
+            Ok(res)
+        });
+        let mut max_by_type = HashMap::new();
+        for (tx_type, len) in type_and_access_list_rlp_len {
+            let max = max_by_type.entry(tx_type as usize).or_insert(0);
+            if len > *max {
+                *max = len;
+            }
+        }
+        println!("{:?}", max_by_type);
     })?;
     Ok(())
 }
