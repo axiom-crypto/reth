@@ -64,7 +64,7 @@ pub struct Transaction<K>
 where
     K: TransactionKind,
 {
-    inner: Arc<TransactionInner<K>>,
+    pub inner: Arc<TransactionInner<K>>,
 }
 
 impl<K> Transaction<K>
@@ -287,17 +287,17 @@ where
 }
 
 /// Internals of a transaction.
-struct TransactionInner<K>
+pub struct TransactionInner<K>
 where
     K: TransactionKind,
 {
     /// The transaction pointer itself.
-    txn: TransactionPtr,
+    pub txn: TransactionPtr,
     /// A set of database handles that are primed for permaopen.
-    primed_dbis: Mutex<IndexSet<ffi::MDBX_dbi>>,
+    pub primed_dbis: Mutex<IndexSet<ffi::MDBX_dbi>>,
     /// Whether the transaction has committed.
-    committed: AtomicBool,
-    env: Environment,
+    pub committed: AtomicBool,
+    pub env: Environment,
     _marker: std::marker::PhantomData<fn(K)>,
 }
 
@@ -520,9 +520,9 @@ impl Transaction<RW> {
 
 /// A shareable pointer to an MDBX transaction.
 #[derive(Clone)]
-pub(crate) struct TransactionPtr {
-    txn: *mut ffi::MDBX_txn,
-    lock: Arc<Mutex<()>>,
+pub struct TransactionPtr {
+    pub txn: *mut ffi::MDBX_txn,
+    pub lock: Arc<Mutex<()>>,
 }
 
 impl TransactionPtr {

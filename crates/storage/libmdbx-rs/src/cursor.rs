@@ -19,8 +19,8 @@ pub struct Cursor<K>
 where
     K: TransactionKind,
 {
-    txn: Transaction<K>,
-    cursor: *mut ffi::MDBX_cursor,
+    pub txn: Transaction<K>,
+    pub cursor: *mut ffi::MDBX_cursor,
 }
 
 impl<K> Cursor<K>

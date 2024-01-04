@@ -16,6 +16,8 @@ normal = [
 ]
 
 [dependencies]
+reth-mdbx-sys = { workspace = true }
+reth-libmdbx = { workspace = true, features = ["return-borrowed"] }
 # reth
 reth-config.workspace = true
 reth-primitives = { workspace = true, features = ["arbitrary", "clap"] }

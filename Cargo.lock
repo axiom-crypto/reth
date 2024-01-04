@@ -5659,6 +5659,8 @@ dependencies = [
  "reth-downloaders",
  "reth-ethereum-payload-builder",
  "reth-interfaces",
+ "reth-libmdbx",
+ "reth-mdbx-sys",
  "reth-metrics",
  "reth-net-nat",
  "reth-network",

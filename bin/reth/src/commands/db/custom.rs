@@ -1,9 +1,14 @@
-use std::fs::File;
+use std::{fs::File, ptr, slice};
 
 use alloy_rlp::Encodable;
 use itertools::Itertools;
 use rayon::prelude::*;
-use reth_db::{database::Database, AccountsTrie, DatabaseEnv, Transactions};
+use reth_db::{
+    database::Database, table::Decompress, transaction::DbTx, AccountsTrie, DatabaseEnv, RawTable,
+    Transactions,
+};
+use reth_mdbx_sys::*;
+use reth_primitives::{TransactionSignedNoHash, TxNumber};
 
 use crate::utils::{DbTool, ListFilter};
 
@@ -16,59 +21,75 @@ pub fn get_tx_data<'a>(tool: DbTool<'a, DatabaseEnv>) -> eyre::Result<()> {
         let total_entries = stats.entries();
         println!("Total tx entries: {}", total_entries);
         let page_size = stats.page_size() as usize;
-        //println!("Page size: {}", page_size);
-        let page_size = 1_000 * page_size;
-        let mut count = total_entries / page_size;
-        let mut start = (total_entries / page_size) * page_size;
-        loop {
-            println!("start: {}, count: {}", start, count);
-            let len = std::cmp::min(page_size, total_entries - start);
-            let filter = ListFilter {
-                skip: start,
-                len,
-                search: vec![],
-                min_row_size: 0,
-                min_key_size: 0,
-                min_value_size: 0,
-                reverse: false,
-                only_count: false,
-            };
-            retry_until_success(|| {
-                let (entries, _hits) = tool.list::<Transactions>(&filter)?;
-                let type_and_access_list_rlp_len: Vec<_> = entries
-                    .into_par_iter()
-                    .map(|(_, tx)| {
-                        if let Some(access_list) = tx.transaction.access_list() {
-                            let mut buf = vec![];
-                            access_list.encode(&mut buf);
-                            (tx, buf.len())
-                        } else {
-                            (tx, 0)
-                        }
-                    })
-                    .collect();
-                let res = type_and_access_list_rlp_len
-                    .into_iter()
-                    .filter_map(|(tx, len)| (len != 0).then(|| (tx.tx_type(), tx.hash(), len)))
-                    .collect_vec();
-                if res.is_empty() {
-                    return Ok(())
+        println!("Page size: {}", page_size);
+
+        let mut txn: *mut MDBX_txn = tx.inner.inner.txn.txn;
+        let cursor = tx.cursor_read::<Transactions>().unwrap();
+        let mut cursor: *mut MDBX_cursor = cursor.inner.cursor;
+
+        let mut current_page = Vec::with_capacity(page_size);
+
+        // Start from the last entry in the database
+        let mut key = MDBX_val { iov_len: 0, iov_base: ptr::null_mut() };
+
+        let mut data = MDBX_val { iov_len: 0, iov_base: ptr::null_mut() };
+
+        unsafe {
+            if mdbx_cursor_get(cursor, &mut key, &mut data, MDBX_LAST) == MDBX_SUCCESS {
+                loop {
+                    // Process the data
+                    current_page.push((key, data));
+
+                    if current_page.len() == page_size {
+                        process_page(&current_page);
+                        current_page.clear();
+                    }
+
+                    // Move cursor to the previous item
+                    if mdbx_cursor_get(cursor, &mut key, &mut data, MDBX_PREV) != MDBX_SUCCESS {
+                        break
+                    }
                 }
-                let f = File::create(format!("data/tx_access_list_lens.rev.{count}.csv"))?;
-                let mut wtr = csv::Writer::from_writer(f);
-                for (tx_type, hash, len) in &res {
-                    wtr.write_record(&[
-                        (*tx_type as isize).to_string(),
-                        hash.to_string(),
-                        len.to_string(),
-                    ])?;
-                }
-                Ok(())
-            });
-            start -= page_size;
-            count -= 1;
-            if count == 0 {
-                break
+            }
+        }
+
+        unsafe fn process_page(page: &Vec<(MDBX_val, MDBX_val)>) {
+            if page.is_empty() {
+                return
+            }
+            let res: Vec<_> = page
+                .into_iter()
+                .map(|(key, data)| {
+                    let s = slice::from_raw_parts(key.iov_base as *const u8, key.iov_len as usize);
+                    let db_index = TxNumber::decompress(s).unwrap();
+
+                    let s =
+                        slice::from_raw_parts(data.iov_base as *const u8, data.iov_len as usize);
+                    let tx = TransactionSignedNoHash::decompress(s).unwrap();
+                    if let Some(access_list) = tx.transaction.access_list() {
+                        let mut buf = vec![];
+                        access_list.encode(&mut buf);
+                        (db_index, tx, buf.len())
+                    } else {
+                        (db_index, tx, 0)
+                    }
+                })
+                .collect();
+            let begin = res.last().unwrap().0;
+            println!("Db tx numbers: {}-{}, Page size: {}", begin, res[0].0, page.len());
+            let res = res
+                .into_iter()
+                .filter_map(|(_, tx, len)| (len != 0).then(|| (tx.tx_type(), tx.hash(), len)))
+                .collect_vec();
+            let f = File::create(format!("data/tx_access_list_lens.rev.{begin}.csv")).unwrap();
+            let mut wtr = csv::Writer::from_writer(f);
+            for (tx_type, hash, len) in &res {
+                wtr.write_record(&[
+                    (*tx_type as isize).to_string(),
+                    hash.to_string(),
+                    len.to_string(),
+                ])
+                .unwrap();
             }
         }
     })?;
