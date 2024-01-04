@@ -91,7 +91,7 @@ pub enum Subcommands {
     Version,
     /// Returns the full database path
     Path,
-    Custom,
+    Custom(custom::Command),
 }
 
 impl Command {
@@ -102,10 +102,10 @@ impl Command {
         let db_path = data_dir.db_path();
 
         match self.command {
-            Subcommands::Custom => {
+            Subcommands::Custom(command) => {
                 let db = open_db_read_only(&db_path, self.db.log_level)?;
                 let tool = DbTool::new(&db, self.chain.clone())?;
-                custom::get_tx_data(tool)?;
+                custom::get_tx_data(tool, command.tx_number)?;
                 // custom::get_state_trie_depth(tool)?;
             }
             // TODO: We'll need to add this on the DB trait.

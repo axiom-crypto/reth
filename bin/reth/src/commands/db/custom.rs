@@ -1,11 +1,12 @@
-use std::{fs::File, ptr, slice};
+use std::{ffi::c_void, fs::File, ptr, slice};
 
 use alloy_rlp::Encodable;
+use clap::Parser;
 use itertools::Itertools;
 use rayon::prelude::*;
 use reth_db::{
     database::Database,
-    table::{Decode, Decompress, Table},
+    table::{Decode, Decompress, Encode, Table},
     transaction::DbTx,
     AccountsTrie, DatabaseEnv, RawTable, Transactions,
 };
@@ -14,9 +15,16 @@ use reth_primitives::{TransactionSignedNoHash, TxNumber};
 
 use crate::utils::{DbTool, ListFilter};
 
+#[derive(Parser, Debug)]
+/// The arguments for the `reth db list` command
+pub struct Command {
+    #[arg(long)]
+    pub tx_number: u64,
+}
+
 const MAX_RETRIES: usize = 10;
 
-pub fn get_tx_data<'a>(tool: DbTool<'a, DatabaseEnv>) -> eyre::Result<()> {
+pub fn get_tx_data<'a>(tool: DbTool<'a, DatabaseEnv>, tx_db_index: TxNumber) -> eyre::Result<()> {
     tool.db.view(|tx| {
         let table_db = tx.inner.open_db(Some("Transactions")).unwrap();
         let stats = tx.inner.db_stat(&table_db).unwrap();
@@ -31,11 +39,15 @@ pub fn get_tx_data<'a>(tool: DbTool<'a, DatabaseEnv>) -> eyre::Result<()> {
 
         let mut current_page = Vec::with_capacity(page_size);
 
-        // Start from the last entry in the database
-        let mut key = MDBX_val { iov_len: 0, iov_base: ptr::null_mut() };
-
         let mut data = MDBX_val { iov_len: 0, iov_base: ptr::null_mut() };
 
+        let key_encode = Encode::encode(tx_db_index);
+        let key_bytes: &[u8] = key_encode.as_ref();
+        // Start from key in the database
+        let mut key =
+            MDBX_val { iov_len: key_bytes.len(), iov_base: key_bytes.as_ptr() as *mut c_void };
+
+        // Go backwards from cursor
         unsafe {
             if mdbx_cursor_get(cursor, &mut key, &mut data, MDBX_LAST) == MDBX_SUCCESS {
                 loop {
