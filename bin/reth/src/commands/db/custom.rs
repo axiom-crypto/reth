@@ -18,9 +18,10 @@ pub fn get_tx_data<'a>(tool: DbTool<'a, DatabaseEnv>) -> eyre::Result<()> {
         let page_size = stats.page_size() as usize;
         //println!("Page size: {}", page_size);
         let page_size = 1_000 * page_size;
-        let mut start = 0;
-        let mut count = 0;
-        while start < total_entries {
+        let mut count = total_entries / page_size;
+        let mut start = (total_entries / page_size) * page_size;
+        loop {
+            println!("start: {}, count: {}", start, count);
             let len = std::cmp::min(page_size, total_entries - start);
             let filter = ListFilter {
                 skip: start,
@@ -53,7 +54,7 @@ pub fn get_tx_data<'a>(tool: DbTool<'a, DatabaseEnv>) -> eyre::Result<()> {
                 if res.is_empty() {
                     return Ok(())
                 }
-                let f = File::create(format!("data/tx_access_list_lens.{count}.csv"))?;
+                let f = File::create(format!("data/tx_access_list_lens.rev.{count}.csv"))?;
                 let mut wtr = csv::Writer::from_writer(f);
                 for (tx_type, hash, len) in &res {
                     wtr.write_record(&[
@@ -64,8 +65,11 @@ pub fn get_tx_data<'a>(tool: DbTool<'a, DatabaseEnv>) -> eyre::Result<()> {
                 }
                 Ok(())
             });
-            start += page_size;
-            count += 1;
+            start -= page_size;
+            count -= 1;
+            if count == 0 {
+                break
+            }
         }
     })?;
     Ok(())
