@@ -60,30 +60,34 @@ pub fn get_tx_data<'a>(tool: DbTool<'a, DatabaseEnv>) -> eyre::Result<()> {
             let res: Vec<_> = page
                 .into_iter()
                 .map(|(key, data)| {
-                    let s = slice::from_raw_parts(key.iov_base as *const u8, key.iov_len as usize);
-                    let db_index = TxNumber::decompress(s).unwrap();
-
-                    let s =
+                    let key =
+                        slice::from_raw_parts(key.iov_base as *const u8, key.iov_len as usize);
+                    let value =
                         slice::from_raw_parts(data.iov_base as *const u8, data.iov_len as usize);
-                    let tx = TransactionSignedNoHash::decompress(s).unwrap();
-                    if let Some(access_list) = tx.transaction.access_list() {
+                    (key, value)
+                })
+                .collect();
+            let res: Vec<_> = res
+                .into_par_iter()
+                .map(|(key, value)| {
+                    let db_index = TxNumber::decompress(key).unwrap();
+
+                    let tx = TransactionSignedNoHash::decompress(value).unwrap();
+                    let len = if let Some(access_list) = tx.transaction.access_list() {
                         let mut buf = vec![];
                         access_list.encode(&mut buf);
-                        (db_index, tx, buf.len())
+                        buf.len()
                     } else {
-                        (db_index, tx, 0)
-                    }
+                        0
+                    };
+                    (db_index, tx.tx_type(), tx.hash(), len)
                 })
                 .collect();
             let begin = res.last().unwrap().0;
             println!("Db tx numbers: {}-{}, Page size: {}", begin, res[0].0, page.len());
-            let res = res
-                .into_iter()
-                .filter_map(|(_, tx, len)| (len != 0).then(|| (tx.tx_type(), tx.hash(), len)))
-                .collect_vec();
             let f = File::create(format!("data/tx_access_list_lens.rev.{begin}.csv")).unwrap();
             let mut wtr = csv::Writer::from_writer(f);
-            for (tx_type, hash, len) in &res {
+            for (_, tx_type, hash, len) in &res {
                 wtr.write_record(&[
                     (*tx_type as isize).to_string(),
                     hash.to_string(),
