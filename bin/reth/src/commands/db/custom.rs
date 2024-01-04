@@ -41,6 +41,7 @@ pub fn get_tx_data<'a>(tool: DbTool<'a, DatabaseEnv>, tx_db_index: TxNumber) -> 
 
         let mut data = MDBX_val { iov_len: 0, iov_base: ptr::null_mut() };
 
+        println!("Starting from tx number: {tx_db_index}");
         let key_encode = Encode::encode(tx_db_index);
         let key_bytes: &[u8] = key_encode.as_ref();
         // Start from key in the database
@@ -49,7 +50,7 @@ pub fn get_tx_data<'a>(tool: DbTool<'a, DatabaseEnv>, tx_db_index: TxNumber) -> 
 
         // Go backwards from cursor
         unsafe {
-            if mdbx_cursor_get(cursor, &mut key, &mut data, MDBX_LAST) == MDBX_SUCCESS {
+            if mdbx_cursor_get(cursor, &mut key, &mut data, MDBX_SET_RANGE) == MDBX_SUCCESS {
                 loop {
                     // Process the data
                     current_page.push((key, data));
