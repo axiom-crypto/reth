@@ -4,8 +4,10 @@ use alloy_rlp::Encodable;
 use itertools::Itertools;
 use rayon::prelude::*;
 use reth_db::{
-    database::Database, table::Decompress, transaction::DbTx, AccountsTrie, DatabaseEnv, RawTable,
-    Transactions,
+    database::Database,
+    table::{Decode, Decompress, Table},
+    transaction::DbTx,
+    AccountsTrie, DatabaseEnv, RawTable, Transactions,
 };
 use reth_mdbx_sys::*;
 use reth_primitives::{TransactionSignedNoHash, TxNumber};
@@ -70,7 +72,7 @@ pub fn get_tx_data<'a>(tool: DbTool<'a, DatabaseEnv>) -> eyre::Result<()> {
             let res: Vec<_> = res
                 .into_par_iter()
                 .map(|(key, value)| {
-                    let db_index = TxNumber::decompress(key).unwrap();
+                    let db_index = <Transactions as Table>::Key::decode(key).unwrap();
 
                     let tx = TransactionSignedNoHash::decompress(value).unwrap();
                     let len = if let Some(access_list) = tx.transaction.access_list() {
