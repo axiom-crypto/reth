@@ -9,9 +9,6 @@ pub(crate) mod secp256k1 {
 #[cfg(not(feature = "secp256k1"))]
 pub(crate) mod secp256k1 {
     pub use super::impl_k256::*;
-
-    #[cfg(feature = "ecrecover")]
-    pub use super::impl_ecrecover::*;
 }
 
 #[cfg(feature = "secp256k1")]
@@ -91,6 +88,8 @@ mod impl_k256 {
     use k256::ecdsa::{RecoveryId, SigningKey, VerifyingKey};
     use revm_primitives::U256;
 
+    #[cfg(feature = "ecrecover")]
+    pub use impl_ecrecover::recover_signer_unchecked;
     /// Recovers the address of the sender using secp256k1 pubkey recovery.
     ///
     /// Converts the public key into an ethereum address by hashing the public key with keccak256.
@@ -184,6 +183,7 @@ mod tests {
         assert_eq!(recover_signer_unchecked(&sig, &hash).ok(), Some(signer));
     }
 
+    #[cfg(feature = "secp256k1")]
     #[test]
     fn sanity_secp256k1_k256_compat() {
         use super::{impl_k256, impl_secp256k1};

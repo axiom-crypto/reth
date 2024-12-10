@@ -76,7 +76,11 @@ rand.workspace = true
 serde_json.workspace = true
 test-fuzz.workspace = true
 modular-bitfield.workspace = true
-
+secp256k1 = { workspace = true, features = [
+    "global-context",
+    "recovery",
+    "rand",
+] }
 
 criterion.workspace = true
 pprof = { workspace = true, features = [
