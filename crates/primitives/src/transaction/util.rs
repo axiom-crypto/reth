@@ -74,11 +74,11 @@ mod impl_ecrecover {
 
     pub fn recover_signer_unchecked(sig: &[u8; 65], msg: &[u8; 32]) -> Result<Address, Error> {
         let rec_id = sig[64];
-        let sig: &B512 = unsafe { &*(sig as *const [u8; 65] as *const B512) };
+        let sig: &B512 = unsafe { &*(&sig[0..64] as *const _ as *const B512) };
         let msg: &B256 = unsafe { &*(msg as *const [u8; 32] as *const B256) };
 
-        let address_256 = ecrecover(sig, rec_id, msg)?;
-        let address = Address::from_slice(&address_256[..20]);
+        let hash = ecrecover(sig, rec_id, msg)?;
+        let address = Address::from_slice(&hash[12..]);
         Ok(address)
     }
 }
