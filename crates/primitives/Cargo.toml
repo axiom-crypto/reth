@@ -18,6 +18,7 @@ reth-ethereum-forks.workspace = true
 reth-static-file-types.workspace = true
 reth-trie-common.workspace = true
 revm-primitives = { workspace = true, features = ["serde"] }
+revm-precompile = { workspace = true, optional = true }
 reth-chainspec = { workspace = true, optional = true }
 reth-codecs = { workspace = true, optional = true }
 reth-optimism-chainspec = { workspace = true, optional = true }
@@ -85,7 +86,7 @@ pprof = { workspace = true, features = [
 ] }
 
 [features]
-default = ["c-kzg", "alloy-compat", "std", "reth-codec", "secp256k1"]
+default = ["alloy-compat", "std", "reth-codec", "ecrecover"]
 std = ["thiserror", "reth-primitives-traits/std"]
 reth-codec = ["dep:reth-codecs", "dep:zstd", "dep:modular-bitfield", "std"]
 asm-keccak = ["alloy-primitives/asm-keccak"]
@@ -100,6 +101,8 @@ arbitrary = [
     "reth-codec",
 ]
 secp256k1 = ["dep:secp256k1"]
+# Use revm-precompile for secp256k1 ecrecover
+ecrecover = ["dep:revm-precompile"]
 c-kzg = ["dep:c-kzg", "revm-primitives/c-kzg", "dep:tempfile", "alloy-eips/kzg"]
 optimism = [
     "reth-chainspec/optimism",
@@ -107,7 +110,12 @@ optimism = [
     "revm-primitives/optimism",
     "dep:reth-optimism-chainspec",
 ]
-alloy-compat = ["reth-primitives-traits/alloy-compat", "dep:alloy-rpc-types", "dep:alloy-serde", "dep:op-alloy-rpc-types"]
+alloy-compat = [
+    "reth-primitives-traits/alloy-compat",
+    "dep:alloy-rpc-types",
+    "dep:alloy-serde",
+    "dep:op-alloy-rpc-types",
+]
 test-utils = ["reth-primitives-traits/test-utils"]
 
 [[bench]]
@@ -118,4 +126,3 @@ harness = false
 name = "validate_blob_tx"
 required-features = ["arbitrary", "c-kzg"]
 harness = false
-

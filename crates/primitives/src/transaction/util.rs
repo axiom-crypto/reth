@@ -9,6 +9,9 @@ pub(crate) mod secp256k1 {
 #[cfg(not(feature = "secp256k1"))]
 pub(crate) mod secp256k1 {
     pub use super::impl_k256::*;
+
+    #[cfg(feature = "ecrecover")]
+    pub use super::impl_ecrecover::*;
 }
 
 #[cfg(feature = "secp256k1")]
@@ -62,6 +65,25 @@ mod impl_secp256k1 {
 }
 
 #[cfg_attr(feature = "secp256k1", allow(unused, unreachable_pub))]
+#[cfg(feature = "ecrecover")]
+mod impl_ecrecover {
+    use super::*;
+    use alloy_primitives::B512;
+    pub(crate) use k256::ecdsa::Error;
+    use revm_precompile::secp256k1::ecrecover;
+
+    pub fn recover_signer_unchecked(sig: &[u8; 65], msg: &[u8; 32]) -> Result<Address, Error> {
+        let rec_id = sig[64];
+        let sig: &B512 = unsafe { &*(sig as *const [u8; 65] as *const B512) };
+        let msg: &B256 = unsafe { &*(msg as *const [u8; 32] as *const B256) };
+
+        let address_256 = ecrecover(sig, rec_id, msg)?;
+        let address = Address::from_slice(&address_256[..20]);
+        Ok(address)
+    }
+}
+
+#[cfg_attr(feature = "secp256k1", allow(unused, unreachable_pub))]
 mod impl_k256 {
     use super::*;
     use crate::keccak256;
@@ -75,6 +97,7 @@ mod impl_k256 {
     ///
     /// This does not ensure that the `s` value in the signature is low, and _just_ wraps the
     /// underlying secp256k1 library.
+    #[cfg(not(feature = "ecrecover"))]
     pub fn recover_signer_unchecked(sig: &[u8; 65], msg: &[u8; 32]) -> Result<Address, Error> {
         let mut signature = k256::ecdsa::Signature::from_slice(&sig[0..64])?;
         let mut recid = sig[64];
