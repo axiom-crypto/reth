@@ -18,6 +18,7 @@ reth-ethereum-forks.workspace = true
 reth-static-file-types.workspace = true
 reth-trie-common.workspace = true
 revm-primitives = { workspace = true, features = ["serde"] }
+revm-precompile = { workspace = true, optional = true }
 reth-chainspec = { workspace = true, optional = true }
 reth-codecs = { workspace = true, optional = true }
 reth-optimism-chainspec = { workspace = true, optional = true }
@@ -75,7 +76,11 @@ rand.workspace = true
 serde_json.workspace = true
 test-fuzz.workspace = true
 modular-bitfield.workspace = true
-
+secp256k1 = { workspace = true, features = [
+    "global-context",
+    "recovery",
+    "rand",
+] }
 
 criterion.workspace = true
 pprof = { workspace = true, features = [
@@ -109,6 +114,8 @@ optimism = [
 ]
 alloy-compat = ["reth-primitives-traits/alloy-compat", "dep:alloy-rpc-types", "dep:alloy-serde", "dep:op-alloy-rpc-types"]
 test-utils = ["reth-primitives-traits/test-utils"]
+# Use revm-precompile for secp256k1 ecrecover
+ecrecover = ["dep:revm-precompile"]
 
 [[bench]]
 name = "recover_ecdsa_crit"
