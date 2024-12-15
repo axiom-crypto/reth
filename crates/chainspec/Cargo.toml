@@ -21,7 +21,7 @@ reth-primitives-traits.workspace = true
 alloy-chains = { workspace = true, features = ["serde", "rlp"] }
 alloy-eips = { workspace = true, features = ["serde"] }
 alloy-genesis.workspace = true
-alloy-primitives = { workspace = true, features = ["rand", "rlp"] }
+alloy-primitives = { workspace = true, features = ["rlp"] }
 alloy-trie.workspace = true
 
 # op
@@ -46,15 +46,7 @@ op-alloy-rpc-types.workspace = true
 
 [features]
 default = ["std"]
-optimism = [
-    "reth-ethereum-forks/optimism",
-    "serde",
-    "dep:op-alloy-rpc-types",
-]
+optimism = ["reth-ethereum-forks/optimism", "serde", "dep:op-alloy-rpc-types"]
 std = []
-arbitrary = [
-    "alloy-chains/arbitrary"
-]
+arbitrary = ["alloy-chains/arbitrary"]
 test-utils = []
-
-
