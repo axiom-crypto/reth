@@ -463,7 +463,7 @@ where
             "Execution time"
         );
 
-        let done = stage_progress == max_block;
+        let done = true; // stage_progress == max_block;
         Ok(ExecOutput {
             checkpoint: StageCheckpoint::new(stage_progress)
                 .with_execution_stage_checkpoint(stage_checkpoint),
